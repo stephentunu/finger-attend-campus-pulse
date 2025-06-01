@@ -181,21 +181,21 @@ const AuthForm = ({ onLogin }: AuthFormProps) => {
           <CardContent className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="name">Full Name</Label>
+                <Label htmlFor="full_name">Full Name</Label>
                 <Input
-                  id="name"
+                  id="full_name"
                   placeholder="John Doe"
-                  value={formData.name}
-                  onChange={(e) => handleInputChange('name', e.target.value)}
+                  value={formData.full_name}
+                  onChange={(e) => handleInputChange('full_name', e.target.value)}
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="studentId">Student ID</Label>
+                <Label htmlFor="student_id">Student ID</Label>
                 <Input
-                  id="studentId"
+                  id="student_id"
                   placeholder="STU12345"
-                  value={formData.studentId}
-                  onChange={(e) => handleInputChange('studentId', e.target.value)}
+                  value={formData.student_id}
+                  onChange={(e) => handleInputChange('student_id', e.target.value)}
                 />
               </div>
             </div>
@@ -239,8 +239,8 @@ const AuthForm = ({ onLogin }: AuthFormProps) => {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="year">Academic Year</Label>
-                <Select onValueChange={(value) => handleInputChange('year', value)}>
+                <Label htmlFor="academic_year">Academic Year</Label>
+                <Select onValueChange={(value) => handleInputChange('academic_year', value)}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select year" />
                   </SelectTrigger>

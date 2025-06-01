@@ -11,22 +11,48 @@ import { Users, TrendingUp, Calendar, Download, LogOut, Search, Filter } from "l
 import AdminAnalytics from './AdminAnalytics';
 import { toast } from "sonner";
 
-const AdminDashboard = ({ user, onLogout }) => {
-  const [students, setStudents] = useState([]);
-  const [filteredStudents, setFilteredStudents] = useState([]);
+interface User {
+  name: string;
+}
+
+interface Student {
+  id: string;
+  name: string;
+  email: string;
+  course: string;
+  department: string;
+  year: string;
+  attendedClasses: number;
+  totalClasses: number;
+  percentage: string;
+  status: string;
+  lastSeen: string;
+  isPresent: boolean;
+}
+
+interface Stats {
+  totalStudents: number;
+  presentToday: number;
+  eligibleStudents: number;
+  avgAttendance: string;
+}
+
+const AdminDashboard = ({ user, onLogout }: { user: User; onLogout: () => void }) => {
+  const [students, setStudents] = useState<Student[]>([]);
+  const [filteredStudents, setFilteredStudents] = useState<Student[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
-  const [stats, setStats] = useState({
+  const [stats, setStats] = useState<Stats>({
     totalStudents: 0,
     presentToday: 0,
     eligibleStudents: 0,
-    avgAttendance: 0
+    avgAttendance: '0'
   });
 
   useEffect(() => {
     // Generate sample student data
     const generateStudentData = () => {
-      const sampleStudents = [];
+      const sampleStudents: Student[] = [];
       const names = ['John Doe', 'Jane Smith', 'Mike Johnson', 'Sarah Wilson', 'David Brown', 
                     'Emily Davis', 'Chris Miller', 'Lisa Garcia', 'Tom Anderson', 'Amy Taylor'];
       const courses = ['Computer Science', 'Engineering', 'Mathematics', 'Physics', 'Business'];
@@ -95,7 +121,7 @@ const AdminDashboard = ({ user, onLogout }) => {
     toast.success(`Quarterly report generated! ${eligibleStudents.length} students eligible for exams.`);
   };
 
-  const getStatusColor = (status) => {
+  const getStatusColor = (status: string) => {
     return status === 'eligible' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800';
   };
 

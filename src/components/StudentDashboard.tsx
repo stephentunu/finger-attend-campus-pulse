@@ -4,14 +4,32 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Separator } from "@/components/ui/separator";
 import { Calendar, Clock, LogOut, User, CheckCircle, XCircle, TrendingUp } from "lucide-react";
 import BiometricScanner from './BiometricScanner';
 import AttendanceChart from './AttendanceChart';
 import { toast } from "sonner";
 
-const StudentDashboard = ({ user, onLogout }) => {
-  const [attendanceData, setAttendanceData] = useState({
+interface User {
+  name: string;
+  studentId: string;
+  course: string;
+  department: string;
+  year: string;
+}
+
+interface AttendanceData {
+  totalClasses: number;
+  attendedClasses: number;
+  percentage: number;
+  status: string;
+  todayStatus: string;
+  checkInTime: string | null;
+  checkOutTime: string | null;
+  recentAttendance: any[];
+}
+
+const StudentDashboard = ({ user, onLogout }: { user: User; onLogout: () => void }) => {
+  const [attendanceData, setAttendanceData] = useState<AttendanceData>({
     totalClasses: 45,
     attendedClasses: 32,
     percentage: 71.1,
@@ -45,7 +63,7 @@ const StudentDashboard = ({ user, onLogout }) => {
     generateAttendanceData();
   }, []);
 
-  const handleBiometricScan = (action) => {
+  const handleBiometricScan = (action: string) => {
     setIsScanning(true);
     
     setTimeout(() => {
@@ -69,7 +87,7 @@ const StudentDashboard = ({ user, onLogout }) => {
           checkOutTime: timeString,
           todayStatus: 'completed',
           attendedClasses: prev.attendedClasses + 1,
-          percentage: ((prev.attendedClasses + 1) / prev.totalClasses * 100).toFixed(1)
+          percentage: parseFloat(((prev.attendedClasses + 1) / prev.totalClasses * 100).toFixed(1))
         }));
         toast.success(`Check-out successful at ${timeString}. Attendance marked!`);
       }
@@ -78,7 +96,7 @@ const StudentDashboard = ({ user, onLogout }) => {
     }, 3000);
   };
 
-  const getStatusColor = (status) => {
+  const getStatusColor = (status: string) => {
     switch (status) {
       case 'eligible': return 'bg-green-100 text-green-800';
       case 'warning': return 'bg-yellow-100 text-yellow-800';
@@ -87,7 +105,7 @@ const StudentDashboard = ({ user, onLogout }) => {
     }
   };
 
-  const getStatusIcon = (status) => {
+  const getStatusIcon = (status: string) => {
     switch (status) {
       case 'completed': return <CheckCircle className="h-4 w-4 text-green-600" />;
       case 'checked-in': return <Clock className="h-4 w-4 text-blue-600" />;

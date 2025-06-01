@@ -3,7 +3,29 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from 'recharts';
 import { TrendingUp, Users, Calendar, Award } from "lucide-react";
 
-const AdminAnalytics = ({ students }) => {
+interface Student {
+  id: string;
+  name: string;
+  email: string;
+  course: string;
+  department: string;
+  year: string;
+  attendedClasses: number;
+  totalClasses: number;
+  percentage: string;
+  status: string;
+  lastSeen: string;
+  isPresent: boolean;
+}
+
+interface DepartmentStats {
+  department: string;
+  students: number;
+  avgAttendance: number;
+  eligible: number;
+}
+
+const AdminAnalytics = ({ students }: { students: Student[] }) => {
   // Prepare data for charts
   const attendanceDistribution = [
     { range: '90-100%', count: students.filter(s => parseFloat(s.percentage) >= 90).length, color: '#10b981' },
@@ -14,7 +36,7 @@ const AdminAnalytics = ({ students }) => {
     { range: 'Below 50%', count: students.filter(s => parseFloat(s.percentage) < 50).length, color: '#6b7280' }
   ];
 
-  const departmentData = students.reduce((acc, student) => {
+  const departmentData = students.reduce((acc: Record<string, DepartmentStats>, student) => {
     const dept = student.department;
     if (!acc[dept]) {
       acc[dept] = { department: dept, students: 0, avgAttendance: 0, eligible: 0 };
@@ -27,7 +49,7 @@ const AdminAnalytics = ({ students }) => {
 
   const departmentStats = Object.values(departmentData).map(dept => ({
     ...dept,
-    avgAttendance: (dept.avgAttendance / dept.students).toFixed(1)
+    avgAttendance: parseFloat((dept.avgAttendance / dept.students).toFixed(1))
   }));
 
   const eligibilityData = [
@@ -82,10 +104,10 @@ const AdminAnalytics = ({ students }) => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-blue-600">
-              {departmentStats.reduce((best, dept) => 
-                parseFloat(dept.avgAttendance) > parseFloat(best.avgAttendance) ? dept : best, 
-                departmentStats[0] || { department: 'N/A', avgAttendance: 0 }
-              ).department}
+              {departmentStats.length > 0 ? departmentStats.reduce((best, dept) => 
+                dept.avgAttendance > best.avgAttendance ? dept : best, 
+                departmentStats[0]
+              ).department : 'N/A'}
             </div>
             <p className="text-xs text-muted-foreground">
               Highest average attendance

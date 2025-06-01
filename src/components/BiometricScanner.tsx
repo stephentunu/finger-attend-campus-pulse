@@ -5,10 +5,16 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Progress } from "@/components/ui/progress";
 import { Fingerprint, Scan } from "lucide-react";
 
-const BiometricScanner = ({ onScan, isScanning, todayStatus }) => {
+interface BiometricScannerProps {
+  onScan: (action: string) => void;
+  isScanning: boolean;
+  todayStatus: string;
+}
+
+const BiometricScanner = ({ onScan, isScanning, todayStatus }: BiometricScannerProps) => {
   const [scanProgress, setScanProgress] = useState(0);
 
-  const handleScan = (action) => {
+  const handleScan = (action: string) => {
     setScanProgress(0);
     onScan(action);
     

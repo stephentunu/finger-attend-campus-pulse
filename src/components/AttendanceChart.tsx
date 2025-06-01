@@ -1,9 +1,22 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { TrendingUp, Calendar } from "lucide-react";
+import { TrendingUp } from "lucide-react";
 
-const AttendanceChart = ({ data }) => {
+interface AttendanceDay {
+  date: string;
+  present: boolean;
+  checkIn?: string;
+  checkOut?: string;
+}
+
+interface CustomTooltipProps {
+  active?: boolean;
+  payload?: any[];
+  label?: string;
+}
+
+const AttendanceChart = ({ data }: { data: AttendanceDay[] }) => {
   // Transform data for the chart
   const chartData = data.slice(-30).map((day, index) => ({
     date: new Date(day.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
@@ -11,7 +24,7 @@ const AttendanceChart = ({ data }) => {
     cumulative: data.slice(0, data.indexOf(day) + 1).filter(d => d.present).length / (data.indexOf(day) + 1) * 100
   }));
 
-  const CustomTooltip = ({ active, payload, label }) => {
+  const CustomTooltip = ({ active, payload, label }: CustomTooltipProps) => {
     if (active && payload && payload.length) {
       return (
         <div className="bg-white p-3 border border-gray-200 rounded-lg shadow-lg">

@@ -15,10 +15,19 @@ export interface StudentRegistrationData {
 const isSupabaseConfigured = () => {
   const url = import.meta.env.VITE_SUPABASE_URL;
   const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
-  console.log('Checking Supabase config:', { url: !!url, key: !!key, urlValue: url });
+  console.log('Checking Supabase config:', { 
+    url: !!url, 
+    key: !!key, 
+    urlValue: url,
+    keyValue: key ? 'present' : 'missing'
+  });
   
-  // More lenient check - just ensure we have values and they're not the placeholder
-  return url && key && url !== 'https://placeholder.supabase.co' && key !== 'placeholder-key';
+  // Check if we have actual values (not undefined and not placeholders)
+  const hasValidUrl = url && url !== 'https://placeholder.supabase.co' && url !== 'undefined';
+  const hasValidKey = key && key !== 'placeholder-key' && key !== 'undefined';
+  
+  console.log('Supabase validation:', { hasValidUrl, hasValidKey });
+  return hasValidUrl && hasValidKey;
 };
 
 export const authService = {
@@ -27,8 +36,44 @@ export const authService = {
     
     if (!isSupabaseConfigured()) {
       console.error('Supabase is not properly configured');
-      toast.error('Database not configured. Please check Supabase connection.');
-      return { data: null, error: new Error('Database not configured') };
+      
+      // For demo purposes, simulate successful registration
+      console.log('Using demo mode for registration');
+      
+      // Store user data in localStorage for demo
+      const demoUser = {
+        id: `demo_${Date.now()}`,
+        email: data.email,
+        full_name: data.full_name,
+        student_id: data.student_id,
+        course: data.course,
+        department: data.department,
+        academic_year: data.academic_year,
+        role: 'student'
+      };
+      
+      // Get existing demo users or create empty array
+      const existingUsers = JSON.parse(localStorage.getItem('demoUsers') || '[]');
+      
+      // Check if user already exists
+      const userExists = existingUsers.find((user: any) => user.email === data.email);
+      if (userExists) {
+        toast.error('User with this email already exists');
+        return { data: null, error: new Error('User already exists') };
+      }
+      
+      // Add new user
+      existingUsers.push(demoUser);
+      localStorage.setItem('demoUsers', JSON.stringify(existingUsers));
+      
+      toast.success('Demo account created successfully! (Supabase not connected)');
+      return { 
+        data: { 
+          user: demoUser,
+          student: demoUser 
+        }, 
+        error: null 
+      };
     }
 
     try {
@@ -42,6 +87,7 @@ export const authService = {
 
       if (authError) {
         console.error('Auth error during registration:', authError);
+        toast.error(`Registration failed: ${authError.message}`);
         throw authError;
       }
 
@@ -64,6 +110,7 @@ export const authService = {
 
         if (profileError) {
           console.error('Profile creation error:', profileError);
+          toast.error(`Profile creation failed: ${profileError.message}`);
           throw profileError;
         }
         
@@ -71,16 +118,34 @@ export const authService = {
       }
 
       return { data: authData, error: null };
-    } catch (error) {
+    } catch (error: any) {
       console.error('Registration error:', error);
+      toast.error('Registration failed. Please try again.');
       return { data: null, error };
     }
   },
 
   async loginStudent(email: string, password: string) {
     if (!isSupabaseConfigured()) {
-      console.error('Supabase is not properly configured');
-      return { data: null, error: new Error('Database not configured') };
+      console.error('Supabase is not properly configured - using demo mode');
+      
+      // For demo purposes, check localStorage
+      const existingUsers = JSON.parse(localStorage.getItem('demoUsers') || '[]');
+      const user = existingUsers.find((user: any) => user.email === email);
+      
+      if (user) {
+        toast.success(`Welcome back, ${user.full_name}! (Demo mode)`);
+        return { 
+          data: { 
+            user: user,
+            student: user 
+          }, 
+          error: null 
+        };
+      } else {
+        toast.error('Invalid credentials or user not found in demo mode');
+        return { data: null, error: new Error('Invalid credentials') };
+      }
     }
 
     try {
@@ -89,7 +154,10 @@ export const authService = {
         password,
       });
 
-      if (error) throw error;
+      if (error) {
+        toast.error(`Login failed: ${error.message}`);
+        throw error;
+      }
 
       // Fetch student profile
       if (data.user) {
@@ -99,13 +167,16 @@ export const authService = {
           .eq('id', data.user.id)
           .single();
 
-        if (profileError) throw profileError;
+        if (profileError) {
+          toast.error(`Profile fetch failed: ${profileError.message}`);
+          throw profileError;
+        }
 
         return { data: { ...data, student: studentData }, error: null };
       }
 
       return { data, error: null };
-    } catch (error) {
+    } catch (error: any) {
       console.error('Login error:', error);
       return { data: null, error };
     }
@@ -113,31 +184,47 @@ export const authService = {
 
   async logout() {
     if (!isSupabaseConfigured()) {
-      return { error: new Error('Database not configured') };
+      // Clear demo session
+      localStorage.removeItem('currentDemoUser');
+      return { error: null };
     }
 
     const { error } = await supabase.auth.signOut();
-    if (error) console.error('Logout error:', error);
+    if (error) {
+      console.error('Logout error:', error);
+      toast.error(`Logout failed: ${error.message}`);
+    }
     return { error };
   },
 
   async getCurrentUser() {
     if (!isSupabaseConfigured()) {
+      // Check for demo user session
+      const currentUser = localStorage.getItem('currentDemoUser');
+      if (currentUser) {
+        const user = JSON.parse(currentUser);
+        return { user, student: user };
+      }
       return { user: null, student: null };
     }
 
-    const { data: { user } } = await supabase.auth.getUser();
-    
-    if (user) {
-      const { data: studentData } = await supabase
-        .from('students')
-        .select('*')
-        .eq('id', user.id)
-        .single();
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (user) {
+        const { data: studentData } = await supabase
+          .from('students')
+          .select('*')
+          .eq('id', user.id)
+          .single();
 
-      return { user, student: studentData };
+        return { user, student: studentData };
+      }
+
+      return { user: null, student: null };
+    } catch (error) {
+      console.error('Get user error:', error);
+      return { user: null, student: null };
     }
-
-    return { user: null, student: null };
   }
 };

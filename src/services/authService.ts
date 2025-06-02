@@ -12,8 +12,19 @@ export interface StudentRegistrationData {
   academic_year: string;
 }
 
+const isSupabaseConfigured = () => {
+  const url = import.meta.env.VITE_SUPABASE_URL;
+  const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
+  return url && key && url !== 'https://placeholder.supabase.co';
+};
+
 export const authService = {
   async registerStudent(data: StudentRegistrationData) {
+    if (!isSupabaseConfigured()) {
+      console.error('Supabase is not properly configured');
+      return { data: null, error: new Error('Database not configured') };
+    }
+
     try {
       // Register user in auth.users
       const { data: authData, error: authError } = await supabase.auth.signUp({
@@ -48,6 +59,11 @@ export const authService = {
   },
 
   async loginStudent(email: string, password: string) {
+    if (!isSupabaseConfigured()) {
+      console.error('Supabase is not properly configured');
+      return { data: null, error: new Error('Database not configured') };
+    }
+
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
@@ -77,12 +93,20 @@ export const authService = {
   },
 
   async logout() {
+    if (!isSupabaseConfigured()) {
+      return { error: new Error('Database not configured') };
+    }
+
     const { error } = await supabase.auth.signOut();
     if (error) console.error('Logout error:', error);
     return { error };
   },
 
   async getCurrentUser() {
+    if (!isSupabaseConfigured()) {
+      return { user: null, student: null };
+    }
+
     const { data: { user } } = await supabase.auth.getUser();
     
     if (user) {

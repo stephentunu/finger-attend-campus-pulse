@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -54,15 +53,22 @@ const AdminDashboard = ({ user, onLogout }: { user: User; onLogout: () => void }
     const loadRealStudentData = () => {
       console.log('Loading real student data from localStorage');
       
-      // Get all registered students from localStorage
-      const registeredStudents = JSON.parse(localStorage.getItem('registeredStudents') || '[]');
+      // Get all registered students from localStorage - checking both possible keys
+      let registeredStudents = JSON.parse(localStorage.getItem('demoUsers') || '[]');
+      
+      // If no data in demoUsers, check the old key for backward compatibility
+      if (registeredStudents.length === 0) {
+        registeredStudents = JSON.parse(localStorage.getItem('registeredStudents') || '[]');
+      }
+      
       console.log('Found registered students:', registeredStudents);
       
       const studentData: Student[] = [];
       
       registeredStudents.forEach((registeredStudent: any) => {
-        // Get attendance data for each student
-        const attendanceData = localStorage.getItem(`attendance_${registeredStudent.studentId}`);
+        // Get attendance data for each student using their student_id or id
+        const studentId = registeredStudent.student_id || registeredStudent.id;
+        const attendanceData = localStorage.getItem(`attendance_${studentId}`);
         let attendance = {
           totalClasses: 0,
           attendedClasses: 0,
@@ -82,12 +88,12 @@ const AdminDashboard = ({ user, onLogout }: { user: User; onLogout: () => void }
         const todayAttendance = attendance.recentAttendance?.find((record: any) => record.date === today);
         
         studentData.push({
-          id: registeredStudent.studentId,
-          name: registeredStudent.name,
+          id: studentId,
+          name: registeredStudent.full_name || registeredStudent.name,
           email: registeredStudent.email,
           course: registeredStudent.course,
           department: registeredStudent.department,
-          year: registeredStudent.year,
+          year: registeredStudent.academic_year || registeredStudent.year,
           attendedClasses: attendance.attendedClasses,
           totalClasses: attendance.totalClasses,
           percentage: percentage.toFixed(1),

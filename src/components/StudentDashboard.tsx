@@ -80,24 +80,42 @@ const StudentDashboard = ({ user, onLogout }: { user: User; onLogout: () => void
     const now = new Date();
     const today = now.toISOString().split('T')[0];
     
+    console.log('Checking action permission:', {
+      action,
+      today,
+      lastCheckInDate: attendanceData.lastCheckInDate,
+      lastCheckOutDate: attendanceData.lastCheckOutDate,
+      todayStatus: attendanceData.todayStatus
+    });
+    
     if (action === 'checkin') {
       // Check if already checked in today
       if (attendanceData.lastCheckInDate === today) {
+        console.log('Already checked in today');
         return false;
       }
-      return attendanceData.todayStatus === 'not-marked';
+      // Can check in if status is not-marked or if it's a new day
+      return attendanceData.todayStatus === 'not-marked' || attendanceData.lastCheckInDate !== today;
     } else {
       // Check if already checked out today
       if (attendanceData.lastCheckOutDate === today) {
+        console.log('Already checked out today');
         return false;
       }
-      return attendanceData.todayStatus === 'checked-in' && attendanceData.lastCheckInDate === today;
+      // Can check out if checked in today and haven't checked out yet
+      return attendanceData.todayStatus === 'checked-in' && attendanceData.lastCheckInDate === today && attendanceData.lastCheckOutDate !== today;
     }
   };
 
   const handleBiometricScan = (action: string) => {
     const now = new Date();
     const today = now.toISOString().split('T')[0];
+    
+    console.log('Handling biometric scan:', {
+      action,
+      today,
+      canPerform: canPerformAction(action)
+    });
     
     // Validate 24-hour rule
     if (!canPerformAction(action)) {
@@ -109,6 +127,10 @@ const StudentDashboard = ({ user, onLogout }: { user: User; onLogout: () => void
       } else {
         if (attendanceData.lastCheckOutDate === today) {
           toast.error('You have already checked out today. Next check-out available tomorrow.');
+          return;
+        }
+        if (attendanceData.todayStatus !== 'checked-in') {
+          toast.error('You must check in first before checking out.');
           return;
         }
       }
@@ -129,11 +151,13 @@ const StudentDashboard = ({ user, onLogout }: { user: User; onLogout: () => void
           ...attendanceData,
           checkInTime: timeString,
           todayStatus: 'checked-in',
-          lastCheckInDate: today
+          lastCheckInDate: today,
+          checkOutTime: null // Reset checkout time for new day
         };
         setAttendanceData(updatedData);
         localStorage.setItem(`attendance_${user.studentId}`, JSON.stringify(updatedData));
         toast.success(`Check-in successful at ${timeString}`);
+        console.log('Check-in completed, updated data:', updatedData);
       } else {
         const newAttendanceRecord = {
           date: dateString,
@@ -165,6 +189,7 @@ const StudentDashboard = ({ user, onLogout }: { user: User; onLogout: () => void
         setAttendanceData(updatedData);
         localStorage.setItem(`attendance_${user.studentId}`, JSON.stringify(updatedData));
         toast.success(`Check-out successful at ${timeString}. Attendance marked!`);
+        console.log('Check-out completed, updated data:', updatedData);
       }
       
       setIsScanning(false);

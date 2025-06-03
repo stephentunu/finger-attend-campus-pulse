@@ -30,9 +30,9 @@ interface AttendanceData {
 
 const StudentDashboard = ({ user, onLogout }: { user: User; onLogout: () => void }) => {
   const [attendanceData, setAttendanceData] = useState<AttendanceData>({
-    totalClasses: 45,
-    attendedClasses: 32,
-    percentage: 71.1,
+    totalClasses: 0,
+    attendedClasses: 0,
+    percentage: 0,
     status: 'eligible',
     todayStatus: 'not-marked',
     checkInTime: null,
@@ -43,25 +43,29 @@ const StudentDashboard = ({ user, onLogout }: { user: User; onLogout: () => void
   const [isScanning, setIsScanning] = useState(false);
 
   useEffect(() => {
-    // Generate sample attendance data
-    const generateAttendanceData = () => {
-      const dates = [];
-      const today = new Date();
-      for (let i = 29; i >= 0; i--) {
-        const date = new Date(today);
-        date.setDate(date.getDate() - i);
-        dates.push({
-          date: date.toISOString().split('T')[0],
-          present: Math.random() > 0.3,
-          checkIn: Math.random() > 0.3 ? '09:00' : null,
-          checkOut: Math.random() > 0.3 ? '11:00' : null
-        });
-      }
-      setAttendanceData(prev => ({ ...prev, recentAttendance: dates }));
-    };
-
-    generateAttendanceData();
-  }, []);
+    // Initialize with empty attendance data for new students
+    console.log('Initializing fresh attendance data for student:', user.studentId);
+    
+    // Check if student has existing attendance data in localStorage
+    const existingData = localStorage.getItem(`attendance_${user.studentId}`);
+    
+    if (existingData) {
+      const savedData = JSON.parse(existingData);
+      setAttendanceData(savedData);
+    } else {
+      // Fresh start - no mock data
+      setAttendanceData({
+        totalClasses: 0,
+        attendedClasses: 0,
+        percentage: 0,
+        status: 'eligible',
+        todayStatus: 'not-marked',
+        checkInTime: null,
+        checkOutTime: null,
+        recentAttendance: []
+      });
+    }
+  }, [user.studentId]);
 
   const handleBiometricScan = (action: string) => {
     setIsScanning(true);
@@ -73,22 +77,46 @@ const StudentDashboard = ({ user, onLogout }: { user: User; onLogout: () => void
         hour: '2-digit', 
         minute: '2-digit' 
       });
+      const dateString = now.toISOString().split('T')[0];
 
       if (action === 'checkin') {
-        setAttendanceData(prev => ({
-          ...prev,
+        const updatedData = {
+          ...attendanceData,
           checkInTime: timeString,
           todayStatus: 'checked-in'
-        }));
+        };
+        setAttendanceData(updatedData);
+        localStorage.setItem(`attendance_${user.studentId}`, JSON.stringify(updatedData));
         toast.success(`Check-in successful at ${timeString}`);
       } else {
-        setAttendanceData(prev => ({
-          ...prev,
+        const newAttendanceRecord = {
+          date: dateString,
+          present: true,
+          checkIn: attendanceData.checkInTime || timeString,
+          checkOut: timeString
+        };
+
+        const updatedRecentAttendance = [
+          ...attendanceData.recentAttendance,
+          newAttendanceRecord
+        ];
+
+        const newTotalClasses = attendanceData.totalClasses + 1;
+        const newAttendedClasses = attendanceData.attendedClasses + 1;
+        const newPercentage = newTotalClasses > 0 ? parseFloat(((newAttendedClasses / newTotalClasses) * 100).toFixed(1)) : 0;
+
+        const updatedData = {
+          ...attendanceData,
           checkOutTime: timeString,
           todayStatus: 'completed',
-          attendedClasses: prev.attendedClasses + 1,
-          percentage: parseFloat(((prev.attendedClasses + 1) / prev.totalClasses * 100).toFixed(1))
-        }));
+          totalClasses: newTotalClasses,
+          attendedClasses: newAttendedClasses,
+          percentage: newPercentage,
+          recentAttendance: updatedRecentAttendance
+        };
+
+        setAttendanceData(updatedData);
+        localStorage.setItem(`attendance_${user.studentId}`, JSON.stringify(updatedData));
         toast.success(`Check-out successful at ${timeString}. Attendance marked!`);
       }
       
@@ -209,7 +237,7 @@ const StudentDashboard = ({ user, onLogout }: { user: User; onLogout: () => void
                     </Badge>
                   </div>
                   <p className="text-xs text-gray-500 mt-1">
-                    Minimum required: 33.3% (15 classes)
+                    Minimum required: 33.3% attendance
                   </p>
                 </div>
               </CardContent>
@@ -291,34 +319,41 @@ const StudentDashboard = ({ user, onLogout }: { user: User; onLogout: () => void
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
-                  {attendanceData.recentAttendance.slice(-7).reverse().map((day, index) => (
-                    <div key={index} className="flex items-center justify-between p-3 rounded-lg border">
-                      <div>
-                        <p className="font-medium">
-                          {new Date(day.date).toLocaleDateString('en-US', { 
-                            weekday: 'short', 
-                            month: 'short', 
-                            day: 'numeric' 
-                          })}
-                        </p>
-                        <p className="text-sm text-gray-600">
-                          {day.checkIn && day.checkOut ? 
-                            `${day.checkIn} - ${day.checkOut}` : 
-                            'No attendance'}
-                        </p>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        {day.present ? (
-                          <CheckCircle className="h-5 w-5 text-green-600" />
-                        ) : (
-                          <XCircle className="h-5 w-5 text-red-600" />
-                        )}
-                        <Badge variant={day.present ? "default" : "destructive"}>
-                          {day.present ? 'Present' : 'Absent'}
-                        </Badge>
-                      </div>
+                  {attendanceData.recentAttendance.length === 0 ? (
+                    <div className="text-center py-8 text-gray-500">
+                      <p>No attendance records yet</p>
+                      <p className="text-sm">Start by checking in to mark your first attendance</p>
                     </div>
-                  ))}
+                  ) : (
+                    attendanceData.recentAttendance.slice(-7).reverse().map((day, index) => (
+                      <div key={index} className="flex items-center justify-between p-3 rounded-lg border">
+                        <div>
+                          <p className="font-medium">
+                            {new Date(day.date).toLocaleDateString('en-US', { 
+                              weekday: 'short', 
+                              month: 'short', 
+                              day: 'numeric' 
+                            })}
+                          </p>
+                          <p className="text-sm text-gray-600">
+                            {day.checkIn && day.checkOut ? 
+                              `${day.checkIn} - ${day.checkOut}` : 
+                              'No attendance'}
+                          </p>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          {day.present ? (
+                            <CheckCircle className="h-5 w-5 text-green-600" />
+                          ) : (
+                            <XCircle className="h-5 w-5 text-red-600" />
+                          )}
+                          <Badge variant={day.present ? "default" : "destructive"}>
+                            {day.present ? 'Present' : 'Absent'}
+                          </Badge>
+                        </div>
+                      </div>
+                    ))
+                  )}
                 </div>
               </CardContent>
             </Card>

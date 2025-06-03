@@ -9,9 +9,17 @@ interface BiometricScannerProps {
   onScan: (action: string) => void;
   isScanning: boolean;
   todayStatus: string;
+  canCheckIn?: boolean;
+  canCheckOut?: boolean;
 }
 
-const BiometricScanner = ({ onScan, isScanning, todayStatus }: BiometricScannerProps) => {
+const BiometricScanner = ({ 
+  onScan, 
+  isScanning, 
+  todayStatus, 
+  canCheckIn = true, 
+  canCheckOut = true 
+}: BiometricScannerProps) => {
   const [scanProgress, setScanProgress] = useState(0);
 
   const handleScan = (action: string) => {
@@ -29,9 +37,6 @@ const BiometricScanner = ({ onScan, isScanning, todayStatus }: BiometricScannerP
       });
     }, 150);
   };
-
-  const canCheckIn = todayStatus === 'not-marked';
-  const canCheckOut = todayStatus === 'checked-in';
 
   return (
     <Card className="border-blue-200">
@@ -100,11 +105,17 @@ const BiometricScanner = ({ onScan, isScanning, todayStatus }: BiometricScannerP
 
         {/* Status Messages */}
         <div className="text-center text-sm">
-          {todayStatus === 'not-marked' && (
+          {todayStatus === 'not-marked' && canCheckIn && (
             <p className="text-gray-600">Use "Check In" to start your attendance</p>
           )}
-          {todayStatus === 'checked-in' && (
+          {todayStatus === 'not-marked' && !canCheckIn && (
+            <p className="text-orange-600">You have already checked in today</p>
+          )}
+          {todayStatus === 'checked-in' && canCheckOut && (
             <p className="text-blue-600">Checked in! Don't forget to check out when leaving</p>
+          )}
+          {todayStatus === 'checked-in' && !canCheckOut && (
+            <p className="text-orange-600">You have already checked out today</p>
           )}
           {todayStatus === 'completed' && (
             <p className="text-green-600">Attendance completed for today</p>
@@ -116,6 +127,13 @@ const BiometricScanner = ({ onScan, isScanning, todayStatus }: BiometricScannerP
           <p className="text-xs text-blue-700 text-center">
             🔒 Your biometric data is encrypted and stored securely. 
             Each scan is unique and cannot be replicated.
+          </p>
+        </div>
+
+        {/* 24-hour Rule Notice */}
+        <div className="bg-yellow-50 p-3 rounded-lg border border-yellow-200">
+          <p className="text-xs text-yellow-700 text-center">
+            ⏰ Note: You can only check in and check out once per 24-hour period.
           </p>
         </div>
       </CardContent>

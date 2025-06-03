@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -26,6 +25,8 @@ interface AttendanceData {
   checkInTime: string | null;
   checkOutTime: string | null;
   recentAttendance: any[];
+  lastCheckInDate: string | null;
+  lastCheckOutDate: string | null;
 }
 
 const StudentDashboard = ({ user, onLogout }: { user: User; onLogout: () => void }) => {
@@ -37,7 +38,9 @@ const StudentDashboard = ({ user, onLogout }: { user: User; onLogout: () => void
     todayStatus: 'not-marked',
     checkInTime: null,
     checkOutTime: null,
-    recentAttendance: []
+    recentAttendance: [],
+    lastCheckInDate: null,
+    lastCheckOutDate: null
   });
 
   const [isScanning, setIsScanning] = useState(false);
@@ -51,7 +54,11 @@ const StudentDashboard = ({ user, onLogout }: { user: User; onLogout: () => void
     
     if (existingData) {
       const savedData = JSON.parse(existingData);
-      setAttendanceData(savedData);
+      setAttendanceData({
+        ...savedData,
+        lastCheckInDate: savedData.lastCheckInDate || null,
+        lastCheckOutDate: savedData.lastCheckOutDate || null
+      });
     } else {
       // Fresh start - no mock data
       setAttendanceData({
@@ -62,16 +69,54 @@ const StudentDashboard = ({ user, onLogout }: { user: User; onLogout: () => void
         todayStatus: 'not-marked',
         checkInTime: null,
         checkOutTime: null,
-        recentAttendance: []
+        recentAttendance: [],
+        lastCheckInDate: null,
+        lastCheckOutDate: null
       });
     }
   }, [user.studentId]);
 
+  const canPerformAction = (action: string) => {
+    const now = new Date();
+    const today = now.toISOString().split('T')[0];
+    
+    if (action === 'checkin') {
+      // Check if already checked in today
+      if (attendanceData.lastCheckInDate === today) {
+        return false;
+      }
+      return attendanceData.todayStatus === 'not-marked';
+    } else {
+      // Check if already checked out today
+      if (attendanceData.lastCheckOutDate === today) {
+        return false;
+      }
+      return attendanceData.todayStatus === 'checked-in' && attendanceData.lastCheckInDate === today;
+    }
+  };
+
   const handleBiometricScan = (action: string) => {
+    const now = new Date();
+    const today = now.toISOString().split('T')[0];
+    
+    // Validate 24-hour rule
+    if (!canPerformAction(action)) {
+      if (action === 'checkin') {
+        if (attendanceData.lastCheckInDate === today) {
+          toast.error('You have already checked in today. Next check-in available tomorrow.');
+          return;
+        }
+      } else {
+        if (attendanceData.lastCheckOutDate === today) {
+          toast.error('You have already checked out today. Next check-out available tomorrow.');
+          return;
+        }
+      }
+    }
+
     setIsScanning(true);
     
     setTimeout(() => {
-      const now = new Date();
       const timeString = now.toLocaleTimeString('en-US', { 
         hour12: false, 
         hour: '2-digit', 
@@ -83,7 +128,8 @@ const StudentDashboard = ({ user, onLogout }: { user: User; onLogout: () => void
         const updatedData = {
           ...attendanceData,
           checkInTime: timeString,
-          todayStatus: 'checked-in'
+          todayStatus: 'checked-in',
+          lastCheckInDate: today
         };
         setAttendanceData(updatedData);
         localStorage.setItem(`attendance_${user.studentId}`, JSON.stringify(updatedData));
@@ -112,7 +158,8 @@ const StudentDashboard = ({ user, onLogout }: { user: User; onLogout: () => void
           totalClasses: newTotalClasses,
           attendedClasses: newAttendedClasses,
           percentage: newPercentage,
-          recentAttendance: updatedRecentAttendance
+          recentAttendance: updatedRecentAttendance,
+          lastCheckOutDate: today
         };
 
         setAttendanceData(updatedData);
@@ -304,6 +351,8 @@ const StudentDashboard = ({ user, onLogout }: { user: User; onLogout: () => void
               onScan={handleBiometricScan}
               isScanning={isScanning}
               todayStatus={attendanceData.todayStatus}
+              canCheckIn={canPerformAction('checkin')}
+              canCheckOut={canPerformAction('checkout')}
             />
           </div>
 

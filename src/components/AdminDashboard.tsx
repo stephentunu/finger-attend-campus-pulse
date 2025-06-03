@@ -50,52 +50,87 @@ const AdminDashboard = ({ user, onLogout }: { user: User; onLogout: () => void }
   });
 
   useEffect(() => {
-    // Generate sample student data
-    const generateStudentData = () => {
-      const sampleStudents: Student[] = [];
-      const names = ['John Doe', 'Jane Smith', 'Mike Johnson', 'Sarah Wilson', 'David Brown', 
-                    'Emily Davis', 'Chris Miller', 'Lisa Garcia', 'Tom Anderson', 'Amy Taylor'];
-      const courses = ['Computer Science', 'Engineering', 'Mathematics', 'Physics', 'Business'];
-      const departments = ['Engineering', 'Sciences', 'Business', 'Arts'];
-
-      for (let i = 0; i < 50; i++) {
-        const attendedClasses = Math.floor(Math.random() * 30) + 15;
-        const totalClasses = 45;
-        const percentage = (attendedClasses / totalClasses * 100);
+    // Load real student data from localStorage
+    const loadRealStudentData = () => {
+      console.log('Loading real student data from localStorage');
+      
+      // Get all registered students from localStorage
+      const registeredStudents = JSON.parse(localStorage.getItem('registeredStudents') || '[]');
+      console.log('Found registered students:', registeredStudents);
+      
+      const studentData: Student[] = [];
+      
+      registeredStudents.forEach((registeredStudent: any) => {
+        // Get attendance data for each student
+        const attendanceData = localStorage.getItem(`attendance_${registeredStudent.studentId}`);
+        let attendance = {
+          totalClasses: 0,
+          attendedClasses: 0,
+          percentage: 0,
+          recentAttendance: []
+        };
         
-        sampleStudents.push({
-          id: `STU${String(i + 1).padStart(3, '0')}`,
-          name: names[Math.floor(Math.random() * names.length)] + ` ${i + 1}`,
-          email: `student${i + 1}@campus.edu`,
-          course: courses[Math.floor(Math.random() * courses.length)],
-          department: departments[Math.floor(Math.random() * departments.length)],
-          year: '2024',
-          attendedClasses,
-          totalClasses,
+        if (attendanceData) {
+          attendance = JSON.parse(attendanceData);
+        }
+        
+        const percentage = attendance.totalClasses > 0 ? 
+          (attendance.attendedClasses / attendance.totalClasses * 100) : 0;
+        
+        // Check if student was present today (simplified check)
+        const today = new Date().toISOString().split('T')[0];
+        const todayAttendance = attendance.recentAttendance?.find((record: any) => record.date === today);
+        
+        studentData.push({
+          id: registeredStudent.studentId,
+          name: registeredStudent.name,
+          email: registeredStudent.email,
+          course: registeredStudent.course,
+          department: registeredStudent.department,
+          year: registeredStudent.year,
+          attendedClasses: attendance.attendedClasses,
+          totalClasses: attendance.totalClasses,
           percentage: percentage.toFixed(1),
           status: percentage >= 33.3 ? 'eligible' : 'not-eligible',
-          lastSeen: new Date(Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-          isPresent: Math.random() > 0.3
+          lastSeen: todayAttendance ? today : 'Never',
+          isPresent: todayAttendance?.present || false
         });
-      }
+      });
 
-      setStudents(sampleStudents);
-      setFilteredStudents(sampleStudents);
+      console.log('Processed student data:', studentData);
+      setStudents(studentData);
+      setFilteredStudents(studentData);
 
       // Calculate stats
-      const presentToday = sampleStudents.filter(s => s.isPresent).length;
-      const eligibleStudents = sampleStudents.filter(s => s.status === 'eligible').length;
-      const avgAttendance = sampleStudents.reduce((sum, s) => sum + parseFloat(s.percentage), 0) / sampleStudents.length;
+      const presentToday = studentData.filter(s => s.isPresent).length;
+      const eligibleStudents = studentData.filter(s => s.status === 'eligible').length;
+      const avgAttendance = studentData.length > 0 ? 
+        studentData.reduce((sum, s) => sum + parseFloat(s.percentage), 0) / studentData.length : 0;
 
       setStats({
-        totalStudents: sampleStudents.length,
+        totalStudents: studentData.length,
         presentToday,
         eligibleStudents,
         avgAttendance: avgAttendance.toFixed(1)
       });
     };
 
-    generateStudentData();
+    loadRealStudentData();
+    
+    // Listen for localStorage changes to update in real-time
+    const handleStorageChange = () => {
+      loadRealStudentData();
+    };
+    
+    window.addEventListener('storage', handleStorageChange);
+    
+    // Also check for updates periodically
+    const interval = setInterval(loadRealStudentData, 5000);
+    
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      clearInterval(interval);
+    };
   }, []);
 
   useEffect(() => {
@@ -178,7 +213,7 @@ const AdminDashboard = ({ user, onLogout }: { user: User; onLogout: () => void }
             <CardContent>
               <div className="text-2xl font-bold text-green-600">{stats.presentToday}</div>
               <p className="text-xs text-muted-foreground">
-                {((stats.presentToday / stats.totalStudents) * 100).toFixed(1)}% attendance rate
+                {stats.totalStudents > 0 ? ((stats.presentToday / stats.totalStudents) * 100).toFixed(1) : 0}% attendance rate
               </p>
             </CardContent>
           </Card>
@@ -191,7 +226,7 @@ const AdminDashboard = ({ user, onLogout }: { user: User; onLogout: () => void }
             <CardContent>
               <div className="text-2xl font-bold text-blue-600">{stats.eligibleStudents}</div>
               <p className="text-xs text-muted-foreground">
-                {((stats.eligibleStudents / stats.totalStudents) * 100).toFixed(1)}% of all students
+                {stats.totalStudents > 0 ? ((stats.eligibleStudents / stats.totalStudents) * 100).toFixed(1) : 0}% of all students
               </p>
             </CardContent>
           </Card>
@@ -265,44 +300,56 @@ const AdminDashboard = ({ user, onLogout }: { user: User; onLogout: () => void }
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {filteredStudents.slice(0, 20).map((student) => (
-                        <TableRow key={student.id}>
-                          <TableCell>
+                      {filteredStudents.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={6} className="text-center py-8 text-gray-500">
                             <div>
-                              <div className="font-medium">{student.name}</div>
-                              <div className="text-sm text-gray-600">{student.id}</div>
-                              <div className="text-xs text-gray-500">{student.email}</div>
+                              <Users className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                              <p className="text-lg font-medium">No students registered yet</p>
+                              <p className="text-sm">Students will appear here once they register in the system</p>
                             </div>
-                          </TableCell>
-                          <TableCell>
-                            <div>
-                              <div className="font-medium">{student.course}</div>
-                              <div className="text-sm text-gray-600">{student.department}</div>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <div>
-                              <div className="font-medium">{student.percentage}%</div>
-                              <div className="text-sm text-gray-600">
-                                {student.attendedClasses}/{student.totalClasses} classes
-                              </div>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <Badge className={getStatusColor(student.status)}>
-                              {student.status === 'eligible' ? 'Eligible' : 'Not Eligible'}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="text-sm text-gray-600">
-                            {new Date(student.lastSeen).toLocaleDateString()}
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant={student.isPresent ? "default" : "secondary"}>
-                              {student.isPresent ? 'Present' : 'Absent'}
-                            </Badge>
                           </TableCell>
                         </TableRow>
-                      ))}
+                      ) : (
+                        filteredStudents.slice(0, 20).map((student) => (
+                          <TableRow key={student.id}>
+                            <TableCell>
+                              <div>
+                                <div className="font-medium">{student.name}</div>
+                                <div className="text-sm text-gray-600">{student.id}</div>
+                                <div className="text-xs text-gray-500">{student.email}</div>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <div>
+                                <div className="font-medium">{student.course}</div>
+                                <div className="text-sm text-gray-600">{student.department}</div>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <div>
+                                <div className="font-medium">{student.percentage}%</div>
+                                <div className="text-sm text-gray-600">
+                                  {student.attendedClasses}/{student.totalClasses} classes
+                                </div>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <Badge className={getStatusColor(student.status)}>
+                                {student.status === 'eligible' ? 'Eligible' : 'Not Eligible'}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-sm text-gray-600">
+                              {student.lastSeen === 'Never' ? 'Never' : new Date(student.lastSeen).toLocaleDateString()}
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant={student.isPresent ? "default" : "secondary"}>
+                                {student.isPresent ? 'Present' : 'Absent'}
+                              </Badge>
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      )}
                     </TableBody>
                   </Table>
                 </div>

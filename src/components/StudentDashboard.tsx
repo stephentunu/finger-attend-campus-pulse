@@ -45,6 +45,68 @@ const StudentDashboard = ({ user, onLogout }: { user: User; onLogout: () => void
 
   const [isScanning, setIsScanning] = useState(false);
 
+  // Helper function to check if a date is a weekday (Monday-Friday)
+  const isWeekday = (date: Date) => {
+    const day = date.getDay();
+    return day >= 1 && day <= 5; // Monday = 1, Friday = 5
+  };
+
+  // Helper function to get all weekdays between two dates
+  const getWeekdaysBetween = (startDate: Date, endDate: Date) => {
+    const weekdays = [];
+    const current = new Date(startDate);
+    
+    while (current <= endDate) {
+      if (isWeekday(current)) {
+        weekdays.push(new Date(current).toISOString().split('T')[0]);
+      }
+      current.setDate(current.getDate() + 1);
+    }
+    
+    return weekdays;
+  };
+
+  // Helper function to fill missing weekdays as absent
+  const fillMissingWeekdays = (attendanceRecords: any[]) => {
+    if (attendanceRecords.length === 0) return [];
+
+    const sortedRecords = [...attendanceRecords].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    const firstDate = new Date(sortedRecords[0].date);
+    const today = new Date();
+    
+    // Get all weekdays from first record to today
+    const allWeekdays = getWeekdaysBetween(firstDate, today);
+    
+    // Create a map of existing records
+    const recordMap = new Map();
+    sortedRecords.forEach(record => {
+      recordMap.set(record.date, record);
+    });
+
+    // Fill in missing weekdays as absent
+    const completeRecords = allWeekdays.map(dateStr => {
+      if (recordMap.has(dateStr)) {
+        return recordMap.get(dateStr);
+      } else {
+        // Only mark as absent if it's a past weekday (not today or future)
+        const recordDate = new Date(dateStr);
+        const todayStr = today.toISOString().split('T')[0];
+        
+        if (dateStr < todayStr) {
+          return {
+            date: dateStr,
+            present: false,
+            checkIn: null,
+            checkOut: null
+          };
+        }
+        return null;
+      }
+    }).filter(record => record !== null);
+
+    return completeRecords;
+  };
+
   // Create a unique storage key for this specific student
   const getStudentStorageKey = (studentId: string) => `attendance_${studentId}`;
 
@@ -59,8 +121,20 @@ const StudentDashboard = ({ user, onLogout }: { user: User; onLogout: () => void
       try {
         const savedData = JSON.parse(existingData);
         console.log('Found existing attendance data for student:', user.studentId, savedData);
+        
+        // Fill missing weekdays and recalculate stats
+        const completeAttendance = fillMissingWeekdays(savedData.recentAttendance || []);
+        const attendedClasses = completeAttendance.filter(record => record.present).length;
+        const totalClasses = completeAttendance.length;
+        const percentage = totalClasses > 0 ? parseFloat(((attendedClasses / totalClasses) * 100).toFixed(1)) : 0;
+        
         setAttendanceData({
           ...savedData,
+          recentAttendance: completeAttendance,
+          attendedClasses,
+          totalClasses,
+          percentage,
+          status: percentage >= 33.3 ? 'eligible' : 'critical',
           lastCheckInDate: savedData.lastCheckInDate || null,
           lastCheckOutDate: savedData.lastCheckOutDate || null
         });
@@ -102,6 +176,12 @@ const StudentDashboard = ({ user, onLogout }: { user: User; onLogout: () => void
     const now = new Date();
     const today = now.toISOString().split('T')[0];
     
+    // Check if today is a weekday
+    if (!isWeekday(now)) {
+      console.log('Today is not a weekday, attendance not required');
+      return false;
+    }
+    
     console.log('Checking action permission for student:', user.studentId, {
       action,
       today,
@@ -139,6 +219,12 @@ const StudentDashboard = ({ user, onLogout }: { user: User; onLogout: () => void
   const handleBiometricScan = (action: string) => {
     const now = new Date();
     const today = now.toISOString().split('T')[0];
+    
+    // Check if today is a weekday
+    if (!isWeekday(now)) {
+      toast.error('Attendance is only required on weekdays (Monday-Friday).');
+      return;
+    }
     
     console.log('Handling biometric scan for student:', user.studentId, {
       action,
@@ -199,8 +285,10 @@ const StudentDashboard = ({ user, onLogout }: { user: User; onLogout: () => void
           newAttendanceRecord
         ];
 
-        const newTotalClasses = attendanceData.totalClasses + 1;
-        const newAttendedClasses = attendanceData.attendedClasses + 1;
+        // Fill missing weekdays and recalculate
+        const completeAttendance = fillMissingWeekdays(updatedRecentAttendance);
+        const newAttendedClasses = completeAttendance.filter(record => record.present).length;
+        const newTotalClasses = completeAttendance.length;
         const newPercentage = newTotalClasses > 0 ? parseFloat(((newAttendedClasses / newTotalClasses) * 100).toFixed(1)) : 0;
 
         const updatedData = {
@@ -210,7 +298,8 @@ const StudentDashboard = ({ user, onLogout }: { user: User; onLogout: () => void
           totalClasses: newTotalClasses,
           attendedClasses: newAttendedClasses,
           percentage: newPercentage,
-          recentAttendance: updatedRecentAttendance,
+          status: newPercentage >= 33.3 ? 'eligible' : 'critical',
+          recentAttendance: completeAttendance,
           lastCheckOutDate: today
         };
 
@@ -222,6 +311,9 @@ const StudentDashboard = ({ user, onLogout }: { user: User; onLogout: () => void
       setIsScanning(false);
     }, 3000);
   };
+
+  // Check if today is a weekday for display purposes
+  const todayIsWeekday = isWeekday(new Date());
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -318,13 +410,13 @@ const StudentDashboard = ({ user, onLogout }: { user: User; onLogout: () => void
                     <div className="text-xl font-semibold text-blue-600">
                       {attendanceData.attendedClasses}
                     </div>
-                    <p className="text-xs text-gray-600">Classes Attended</p>
+                    <p className="text-xs text-gray-600">Days Present</p>
                   </div>
                   <div>
                     <div className="text-xl font-semibold text-gray-600">
                       {attendanceData.totalClasses}
                     </div>
-                    <p className="text-xs text-gray-600">Total Classes</p>
+                    <p className="text-xs text-gray-600">Total Weekdays</p>
                   </div>
                 </div>
 
@@ -336,9 +428,17 @@ const StudentDashboard = ({ user, onLogout }: { user: User; onLogout: () => void
                     </Badge>
                   </div>
                   <p className="text-xs text-gray-500 mt-1">
-                    Minimum required: 33.3% attendance
+                    Minimum required: 33.3% attendance (weekdays only)
                   </p>
                 </div>
+
+                {!todayIsWeekday && (
+                  <div className="bg-blue-50 p-3 rounded-lg border border-blue-200">
+                    <p className="text-xs text-blue-700 text-center">
+                      📅 Today is a weekend. Attendance is only tracked Monday-Friday.
+                    </p>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>
@@ -359,6 +459,7 @@ const StudentDashboard = ({ user, onLogout }: { user: User; onLogout: () => void
                     month: 'long', 
                     day: 'numeric' 
                   })}
+                  {!todayIsWeekday && ' (Weekend)'}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -367,11 +468,13 @@ const StudentDashboard = ({ user, onLogout }: { user: User; onLogout: () => void
                     {getStatusIcon(attendanceData.todayStatus)}
                     <div>
                       <p className="font-medium">
-                        {attendanceData.todayStatus === 'completed' ? 'Attendance Complete' :
+                        {!todayIsWeekday ? 'Weekend - No Attendance Required' :
+                         attendanceData.todayStatus === 'completed' ? 'Attendance Complete' :
                          attendanceData.todayStatus === 'checked-in' ? 'Checked In' : 'Not Marked'}
                       </p>
                       <p className="text-sm text-gray-600">
-                        {attendanceData.todayStatus === 'completed' ? 'Both check-in and check-out completed' :
+                        {!todayIsWeekday ? 'Attendance is only tracked on weekdays' :
+                         attendanceData.todayStatus === 'completed' ? 'Both check-in and check-out completed' :
                          attendanceData.todayStatus === 'checked-in' ? 'Please check-out before leaving' :
                          'Use biometric scanner to mark attendance'}
                       </p>
@@ -379,6 +482,7 @@ const StudentDashboard = ({ user, onLogout }: { user: User; onLogout: () => void
                   </div>
                 </div>
 
+                {/* Check-in/check-out time display */}
                 {(attendanceData.checkInTime || attendanceData.checkOutTime) && (
                   <div className="grid grid-cols-2 gap-4">
                     <div className="text-center p-3 bg-green-50 rounded-lg">
@@ -416,7 +520,7 @@ const StudentDashboard = ({ user, onLogout }: { user: User; onLogout: () => void
             <Card>
               <CardHeader>
                 <CardTitle>Recent Attendance</CardTitle>
-                <CardDescription>Last 7 days</CardDescription>
+                <CardDescription>Last 7 weekdays</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
@@ -439,7 +543,7 @@ const StudentDashboard = ({ user, onLogout }: { user: User; onLogout: () => void
                           <p className="text-sm text-gray-600">
                             {day.checkIn && day.checkOut ? 
                               `${day.checkIn} - ${day.checkOut}` : 
-                              'No attendance'}
+                              day.present ? 'Present (incomplete)' : 'Absent'}
                           </p>
                         </div>
                         <div className="flex items-center space-x-2">

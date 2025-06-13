@@ -3,7 +3,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Calendar, Clock, LogOut, User, CheckCircle, XCircle, TrendingUp } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Calendar, Clock, LogOut, User, CheckCircle, XCircle, TrendingUp, BookOpen } from "lucide-react";
 import BiometricScanner from './BiometricScanner';
 import AttendanceChart from './AttendanceChart';
 import { toast } from "sonner";
@@ -27,7 +28,72 @@ interface AttendanceData {
   recentAttendance: any[];
   lastCheckInDate: string | null;
   lastCheckOutDate: string | null;
+  selectedUnit: string | null;
 }
+
+// Sample units based on common courses
+const getUnitsForCourse = (course: string, department: string) => {
+  const units = {
+    'Computer Science': [
+      'Programming Fundamentals',
+      'Data Structures & Algorithms',
+      'Database Systems',
+      'Software Engineering',
+      'Computer Networks',
+      'Operating Systems',
+      'Web Development',
+      'Machine Learning'
+    ],
+    'Mathematics': [
+      'Calculus I',
+      'Calculus II',
+      'Linear Algebra',
+      'Statistics',
+      'Discrete Mathematics',
+      'Number Theory',
+      'Mathematical Analysis',
+      'Probability Theory'
+    ],
+    'Business': [
+      'Business Management',
+      'Marketing Principles',
+      'Financial Accounting',
+      'Human Resources',
+      'Business Ethics',
+      'Strategic Management',
+      'Operations Management',
+      'Entrepreneurship'
+    ],
+    'Physics': [
+      'Classical Mechanics',
+      'Thermodynamics',
+      'Electromagnetism',
+      'Quantum Physics',
+      'Optics',
+      'Nuclear Physics',
+      'Solid State Physics',
+      'Astrophysics'
+    ],
+    'Engineering': [
+      'Engineering Mathematics',
+      'Mechanics of Materials',
+      'Thermodynamics',
+      'Fluid Mechanics',
+      'Control Systems',
+      'Digital Electronics',
+      'Engineering Design',
+      'Project Management'
+    ]
+  };
+
+  // Return units based on course, fallback to general units
+  return units[course as keyof typeof units] || units['Engineering'] || [
+    'General Studies',
+    'Research Methods',
+    'Technical Writing',
+    'Project Work'
+  ];
+};
 
 const StudentDashboard = ({ user, onLogout }: { user: User; onLogout: () => void }) => {
   const [attendanceData, setAttendanceData] = useState<AttendanceData>({
@@ -40,10 +106,15 @@ const StudentDashboard = ({ user, onLogout }: { user: User; onLogout: () => void
     checkOutTime: null,
     recentAttendance: [],
     lastCheckInDate: null,
-    lastCheckOutDate: null
+    lastCheckOutDate: null,
+    selectedUnit: null
   });
 
   const [isScanning, setIsScanning] = useState(false);
+  const [selectedUnit, setSelectedUnit] = useState<string>('');
+
+  // Get available units for the student's course
+  const availableUnits = getUnitsForCourse(user.course, user.department);
 
   // Helper function to check if a date is a weekday (Monday-Friday)
   const isWeekday = (date: Date) => {
@@ -97,7 +168,8 @@ const StudentDashboard = ({ user, onLogout }: { user: User; onLogout: () => void
             date: dateStr,
             present: false,
             checkIn: null,
-            checkOut: null
+            checkOut: null,
+            unit: null
           };
         }
         return null;
@@ -136,7 +208,8 @@ const StudentDashboard = ({ user, onLogout }: { user: User; onLogout: () => void
           percentage,
           status: percentage >= 33.3 ? 'eligible' : 'critical',
           lastCheckInDate: savedData.lastCheckInDate || null,
-          lastCheckOutDate: savedData.lastCheckOutDate || null
+          lastCheckOutDate: savedData.lastCheckOutDate || null,
+          selectedUnit: savedData.selectedUnit || null
         });
       } catch (error) {
         console.error('Error parsing attendance data for student:', user.studentId, error);
@@ -151,7 +224,8 @@ const StudentDashboard = ({ user, onLogout }: { user: User; onLogout: () => void
           checkOutTime: null,
           recentAttendance: [],
           lastCheckInDate: null,
-          lastCheckOutDate: null
+          lastCheckOutDate: null,
+          selectedUnit: null
         });
       }
     } else {
@@ -167,7 +241,8 @@ const StudentDashboard = ({ user, onLogout }: { user: User; onLogout: () => void
         checkOutTime: null,
         recentAttendance: [],
         lastCheckInDate: null,
-        lastCheckOutDate: null
+        lastCheckOutDate: null,
+        selectedUnit: null
       });
     }
   }, [user.studentId]);
@@ -249,11 +324,18 @@ const StudentDashboard = ({ user, onLogout }: { user: User; onLogout: () => void
       toast.error('Attendance is only required on weekdays (Monday-Friday).');
       return;
     }
+
+    // For check-in, validate unit selection
+    if (action === 'checkin' && !selectedUnit) {
+      toast.error('Please select a unit before checking in.');
+      return;
+    }
     
     console.log('Handling biometric scan for student:', user.studentId, {
       action,
       today,
-      canPerform: canPerformAction(action)
+      canPerform: canPerformAction(action),
+      selectedUnit: action === 'checkin' ? selectedUnit : attendanceData.selectedUnit
     });
     
     // Validate 24-hour rule and minimum lesson duration
@@ -308,17 +390,22 @@ const StudentDashboard = ({ user, onLogout }: { user: User; onLogout: () => void
           checkInTime: timeString,
           todayStatus: 'checked-in',
           lastCheckInDate: today,
-          checkOutTime: null // Reset checkout time for new day
+          checkOutTime: null, // Reset checkout time for new day
+          selectedUnit: selectedUnit
         };
         saveAttendanceData(updatedData);
-        toast.success(`Check-in successful at ${timeString}. Minimum lesson duration: 120 minutes.`);
+        toast.success(`Check-in successful for ${selectedUnit} at ${timeString}. Minimum lesson duration: 120 minutes.`);
         console.log('Check-in completed for student:', user.studentId, updatedData);
+        
+        // Reset unit selection after successful check-in
+        setSelectedUnit('');
       } else {
         const newAttendanceRecord = {
           date: dateString,
           present: true,
           checkIn: attendanceData.checkInTime || timeString,
-          checkOut: timeString
+          checkOut: timeString,
+          unit: attendanceData.selectedUnit
         };
 
         const updatedRecentAttendance = [
@@ -345,7 +432,7 @@ const StudentDashboard = ({ user, onLogout }: { user: User; onLogout: () => void
         };
 
         saveAttendanceData(updatedData);
-        toast.success(`Check-out successful at ${timeString}. Attendance marked!`);
+        toast.success(`Check-out successful for ${attendanceData.selectedUnit} at ${timeString}. Attendance marked!`);
         console.log('Check-out completed for student:', user.studentId, updatedData);
       }
       
@@ -484,8 +571,40 @@ const StudentDashboard = ({ user, onLogout }: { user: User; onLogout: () => void
             </Card>
           </div>
 
-          {/* Middle Column - Biometric Scanner & Today's Status */}
+          {/* Middle Column - Unit Selection & Biometric Scanner & Today's Status */}
           <div className="space-y-6">
+            {/* Unit Selection for Check-in */}
+            {todayIsWeekday && attendanceData.todayStatus !== 'completed' && attendanceData.todayStatus !== 'checked-in' && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center space-x-2">
+                    <BookOpen className="h-5 w-5 text-purple-600" />
+                    <span>Select Unit</span>
+                  </CardTitle>
+                  <CardDescription>Choose the unit you're attending today</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Select value={selectedUnit} onValueChange={setSelectedUnit}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select a unit to attend" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableUnits.map((unit) => (
+                        <SelectItem key={unit} value={unit}>
+                          {unit}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {!selectedUnit && (
+                    <p className="text-xs text-orange-600 mt-2">
+                      ⚠️ Please select a unit before checking in
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
             {/* Today's Attendance */}
             <Card>
               <CardHeader>
@@ -517,8 +636,13 @@ const StudentDashboard = ({ user, onLogout }: { user: User; onLogout: () => void
                         {!todayIsWeekday ? 'Attendance is only tracked on weekdays' :
                          attendanceData.todayStatus === 'completed' ? 'Both check-in and check-out completed' :
                          attendanceData.todayStatus === 'checked-in' ? 'Please check-out before leaving' :
-                         'Use biometric scanner to mark attendance'}
+                         'Select unit and use biometric scanner to mark attendance'}
                       </p>
+                      {attendanceData.selectedUnit && (
+                        <p className="text-xs text-purple-600 font-medium">
+                          Unit: {attendanceData.selectedUnit}
+                        </p>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -548,7 +672,7 @@ const StudentDashboard = ({ user, onLogout }: { user: User; onLogout: () => void
               onScan={handleBiometricScan}
               isScanning={isScanning}
               todayStatus={attendanceData.todayStatus}
-              canCheckIn={canPerformAction('checkin')}
+              canCheckIn={canPerformAction('checkin') && selectedUnit !== ''}
               canCheckOut={canPerformAction('checkout')}
             />
           </div>
@@ -568,7 +692,7 @@ const StudentDashboard = ({ user, onLogout }: { user: User; onLogout: () => void
                   {attendanceData.recentAttendance.length === 0 ? (
                     <div className="text-center py-8 text-gray-500">
                       <p>No attendance records yet</p>
-                      <p className="text-sm">Start by checking in to mark your first attendance</p>
+                      <p className="text-sm">Start by selecting a unit and checking in to mark your first attendance</p>
                     </div>
                   ) : (
                     attendanceData.recentAttendance.slice(-7).reverse().map((day, index) => (
@@ -586,6 +710,11 @@ const StudentDashboard = ({ user, onLogout }: { user: User; onLogout: () => void
                               `${day.checkIn} - ${day.checkOut}` : 
                               day.present ? 'Present (incomplete)' : 'Absent'}
                           </p>
+                          {day.unit && (
+                            <p className="text-xs text-purple-600 font-medium">
+                              {day.unit}
+                            </p>
+                          )}
                         </div>
                         <div className="flex items-center space-x-2">
                           {day.present ? (

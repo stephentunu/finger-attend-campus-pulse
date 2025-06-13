@@ -180,14 +180,35 @@ const StudentDashboard = ({ user, onLogout }: { user: User; onLogout: () => void
   };
 
   // Create a unique storage key for this specific student
-  const getStudentStorageKey = (studentId: string) => `attendance_${studentId}`;
+  const getStudentStorageKey = (studentId: string) => {
+    console.log('Creating storage key for student:', studentId, 'type:', typeof studentId);
+    
+    // Ensure we have a valid student ID
+    if (!studentId || studentId === 'undefined' || studentId === '') {
+      console.error('Invalid student ID provided to getStudentStorageKey:', studentId);
+      // Fallback to a default key, but this should be investigated
+      return `attendance_default_${Math.random()}`;
+    }
+    
+    const key = `attendance_${studentId}`;
+    console.log('Generated storage key:', key);
+    return key;
+  };
 
   useEffect(() => {
-    console.log('Loading attendance data for student:', user.studentId);
+    console.log('Loading attendance data for student:', user.studentId, 'user object:', user);
+    
+    // Validate user and studentId
+    if (!user || !user.studentId) {
+      console.error('Invalid user object or missing studentId:', user);
+      return;
+    }
     
     // Get attendance data specific to this student only
     const studentStorageKey = getStudentStorageKey(user.studentId);
     const existingData = localStorage.getItem(studentStorageKey);
+    
+    console.log('Looking for data with key:', studentStorageKey, 'found:', !!existingData);
     
     if (existingData) {
       try {
@@ -245,7 +266,7 @@ const StudentDashboard = ({ user, onLogout }: { user: User; onLogout: () => void
         selectedUnit: null
       });
     }
-  }, [user.studentId]);
+  }, [user?.studentId]); // Add dependency on user.studentId
 
   const canPerformAction = (action: string) => {
     const now = new Date();
@@ -309,6 +330,11 @@ const StudentDashboard = ({ user, onLogout }: { user: User; onLogout: () => void
   };
 
   const saveAttendanceData = (newData: AttendanceData) => {
+    if (!user || !user.studentId) {
+      console.error('Cannot save attendance data - invalid user or studentId:', user);
+      return;
+    }
+    
     const studentStorageKey = getStudentStorageKey(user.studentId);
     console.log('Saving attendance data for student:', user.studentId, 'to key:', studentStorageKey, newData);
     localStorage.setItem(studentStorageKey, JSON.stringify(newData));

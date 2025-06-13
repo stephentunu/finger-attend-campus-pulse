@@ -187,7 +187,8 @@ const StudentDashboard = ({ user, onLogout }: { user: User; onLogout: () => void
       today,
       lastCheckInDate: attendanceData.lastCheckInDate,
       lastCheckOutDate: attendanceData.lastCheckOutDate,
-      todayStatus: attendanceData.todayStatus
+      todayStatus: attendanceData.todayStatus,
+      checkInTime: attendanceData.checkInTime
     });
     
     if (action === 'checkin') {
@@ -204,8 +205,31 @@ const StudentDashboard = ({ user, onLogout }: { user: User; onLogout: () => void
         console.log('Student', user.studentId, 'already checked out today');
         return false;
       }
-      // Can check out if checked in today and haven't checked out yet
-      return attendanceData.todayStatus === 'checked-in' && attendanceData.lastCheckInDate === today && attendanceData.lastCheckOutDate !== today;
+      
+      // Check if checked in today
+      if (attendanceData.todayStatus !== 'checked-in' || attendanceData.lastCheckInDate !== today) {
+        return false;
+      }
+      
+      // Check if minimum 120 minutes have passed since check-in
+      if (attendanceData.checkInTime) {
+        const checkInTime = attendanceData.checkInTime;
+        const [checkInHours, checkInMinutes] = checkInTime.split(':').map(Number);
+        const checkInDateTime = new Date();
+        checkInDateTime.setHours(checkInHours, checkInMinutes, 0, 0);
+        
+        const timeDifferenceMs = now.getTime() - checkInDateTime.getTime();
+        const timeDifferenceMinutes = timeDifferenceMs / (1000 * 60);
+        
+        console.log('Time difference since check-in:', timeDifferenceMinutes, 'minutes');
+        
+        if (timeDifferenceMinutes < 120) {
+          console.log('Student', user.studentId, 'cannot check out yet - minimum 120 minutes not reached');
+          return false;
+        }
+      }
+      
+      return true;
     }
   };
 
@@ -232,7 +256,7 @@ const StudentDashboard = ({ user, onLogout }: { user: User; onLogout: () => void
       canPerform: canPerformAction(action)
     });
     
-    // Validate 24-hour rule
+    // Validate 24-hour rule and minimum lesson duration
     if (!canPerformAction(action)) {
       if (action === 'checkin') {
         if (attendanceData.lastCheckInDate === today) {
@@ -247,6 +271,23 @@ const StudentDashboard = ({ user, onLogout }: { user: User; onLogout: () => void
         if (attendanceData.todayStatus !== 'checked-in') {
           toast.error('You must check in first before checking out.');
           return;
+        }
+        
+        // Check minimum lesson duration
+        if (attendanceData.checkInTime) {
+          const checkInTime = attendanceData.checkInTime;
+          const [checkInHours, checkInMinutes] = checkInTime.split(':').map(Number);
+          const checkInDateTime = new Date();
+          checkInDateTime.setHours(checkInHours, checkInMinutes, 0, 0);
+          
+          const timeDifferenceMs = now.getTime() - checkInDateTime.getTime();
+          const timeDifferenceMinutes = timeDifferenceMs / (1000 * 60);
+          
+          if (timeDifferenceMinutes < 120) {
+            const remainingMinutes = Math.ceil(120 - timeDifferenceMinutes);
+            toast.error(`Minimum lesson duration is 120 minutes. Please wait ${remainingMinutes} more minutes before checking out.`);
+            return;
+          }
         }
       }
     }
@@ -270,7 +311,7 @@ const StudentDashboard = ({ user, onLogout }: { user: User; onLogout: () => void
           checkOutTime: null // Reset checkout time for new day
         };
         saveAttendanceData(updatedData);
-        toast.success(`Check-in successful at ${timeString}`);
+        toast.success(`Check-in successful at ${timeString}. Minimum lesson duration: 120 minutes.`);
         console.log('Check-in completed for student:', user.studentId, updatedData);
       } else {
         const newAttendanceRecord = {

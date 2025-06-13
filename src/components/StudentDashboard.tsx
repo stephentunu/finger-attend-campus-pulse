@@ -45,22 +45,44 @@ const StudentDashboard = ({ user, onLogout }: { user: User; onLogout: () => void
 
   const [isScanning, setIsScanning] = useState(false);
 
+  // Create a unique storage key for this specific student
+  const getStudentStorageKey = (studentId: string) => `attendance_${studentId}`;
+
   useEffect(() => {
-    // Initialize with empty attendance data for new students
-    console.log('Initializing fresh attendance data for student:', user.studentId);
+    console.log('Loading attendance data for student:', user.studentId);
     
-    // Check if student has existing attendance data in localStorage
-    const existingData = localStorage.getItem(`attendance_${user.studentId}`);
+    // Get attendance data specific to this student only
+    const studentStorageKey = getStudentStorageKey(user.studentId);
+    const existingData = localStorage.getItem(studentStorageKey);
     
     if (existingData) {
-      const savedData = JSON.parse(existingData);
-      setAttendanceData({
-        ...savedData,
-        lastCheckInDate: savedData.lastCheckInDate || null,
-        lastCheckOutDate: savedData.lastCheckOutDate || null
-      });
+      try {
+        const savedData = JSON.parse(existingData);
+        console.log('Found existing attendance data for student:', user.studentId, savedData);
+        setAttendanceData({
+          ...savedData,
+          lastCheckInDate: savedData.lastCheckInDate || null,
+          lastCheckOutDate: savedData.lastCheckOutDate || null
+        });
+      } catch (error) {
+        console.error('Error parsing attendance data for student:', user.studentId, error);
+        // Reset to fresh data if parsing fails
+        setAttendanceData({
+          totalClasses: 0,
+          attendedClasses: 0,
+          percentage: 0,
+          status: 'eligible',
+          todayStatus: 'not-marked',
+          checkInTime: null,
+          checkOutTime: null,
+          recentAttendance: [],
+          lastCheckInDate: null,
+          lastCheckOutDate: null
+        });
+      }
     } else {
-      // Fresh start - no mock data
+      console.log('No existing data found for student:', user.studentId, 'initializing fresh data');
+      // Fresh start - no data for this student
       setAttendanceData({
         totalClasses: 0,
         attendedClasses: 0,
@@ -80,7 +102,7 @@ const StudentDashboard = ({ user, onLogout }: { user: User; onLogout: () => void
     const now = new Date();
     const today = now.toISOString().split('T')[0];
     
-    console.log('Checking action permission:', {
+    console.log('Checking action permission for student:', user.studentId, {
       action,
       today,
       lastCheckInDate: attendanceData.lastCheckInDate,
@@ -91,7 +113,7 @@ const StudentDashboard = ({ user, onLogout }: { user: User; onLogout: () => void
     if (action === 'checkin') {
       // Check if already checked in today
       if (attendanceData.lastCheckInDate === today) {
-        console.log('Already checked in today');
+        console.log('Student', user.studentId, 'already checked in today');
         return false;
       }
       // Can check in if status is not-marked or if it's a new day
@@ -99,7 +121,7 @@ const StudentDashboard = ({ user, onLogout }: { user: User; onLogout: () => void
     } else {
       // Check if already checked out today
       if (attendanceData.lastCheckOutDate === today) {
-        console.log('Already checked out today');
+        console.log('Student', user.studentId, 'already checked out today');
         return false;
       }
       // Can check out if checked in today and haven't checked out yet
@@ -107,11 +129,18 @@ const StudentDashboard = ({ user, onLogout }: { user: User; onLogout: () => void
     }
   };
 
+  const saveAttendanceData = (newData: AttendanceData) => {
+    const studentStorageKey = getStudentStorageKey(user.studentId);
+    console.log('Saving attendance data for student:', user.studentId, 'to key:', studentStorageKey, newData);
+    localStorage.setItem(studentStorageKey, JSON.stringify(newData));
+    setAttendanceData(newData);
+  };
+
   const handleBiometricScan = (action: string) => {
     const now = new Date();
     const today = now.toISOString().split('T')[0];
     
-    console.log('Handling biometric scan:', {
+    console.log('Handling biometric scan for student:', user.studentId, {
       action,
       today,
       canPerform: canPerformAction(action)
@@ -154,10 +183,9 @@ const StudentDashboard = ({ user, onLogout }: { user: User; onLogout: () => void
           lastCheckInDate: today,
           checkOutTime: null // Reset checkout time for new day
         };
-        setAttendanceData(updatedData);
-        localStorage.setItem(`attendance_${user.studentId}`, JSON.stringify(updatedData));
+        saveAttendanceData(updatedData);
         toast.success(`Check-in successful at ${timeString}`);
-        console.log('Check-in completed, updated data:', updatedData);
+        console.log('Check-in completed for student:', user.studentId, updatedData);
       } else {
         const newAttendanceRecord = {
           date: dateString,
@@ -186,10 +214,9 @@ const StudentDashboard = ({ user, onLogout }: { user: User; onLogout: () => void
           lastCheckOutDate: today
         };
 
-        setAttendanceData(updatedData);
-        localStorage.setItem(`attendance_${user.studentId}`, JSON.stringify(updatedData));
+        saveAttendanceData(updatedData);
         toast.success(`Check-out successful at ${timeString}. Attendance marked!`);
-        console.log('Check-out completed, updated data:', updatedData);
+        console.log('Check-out completed for student:', user.studentId, updatedData);
       }
       
       setIsScanning(false);

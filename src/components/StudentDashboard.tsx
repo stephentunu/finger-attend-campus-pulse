@@ -423,8 +423,7 @@ const StudentDashboard = ({ user, onLogout }: { user: User; onLogout: () => void
         toast.success(`Check-in successful for ${selectedUnit} at ${timeString}. Minimum lesson duration: 120 minutes.`);
         console.log('Check-in completed for student:', user.studentId, updatedData);
         
-        // Reset unit selection after successful check-in
-        setSelectedUnit('');
+        // Don't reset unit selection after successful check-in - keep it selected
       } else {
         const newAttendanceRecord = {
           date: dateString,

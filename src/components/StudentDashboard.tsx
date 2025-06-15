@@ -11,7 +11,7 @@ import { toast } from "sonner";
 
 interface User {
   name: string;
-  studentId: string;
+  student_id: string; // Keep original property name
   course: string;
   department: string;
   year: string;
@@ -196,16 +196,16 @@ const StudentDashboard = ({ user, onLogout }: { user: User; onLogout: () => void
   };
 
   useEffect(() => {
-    console.log('Loading attendance data for student:', user.studentId, 'user object:', user);
+    console.log('Loading attendance data for student:', user.student_id, 'user object:', user);
     
-    // Validate user and studentId
-    if (!user || !user.studentId) {
-      console.error('Invalid user object or missing studentId:', user);
+    // Validate user and student_id (note the underscore)
+    if (!user || !user.student_id) {
+      console.error('Invalid user object or missing student_id:', user);
       return;
     }
     
     // Get attendance data specific to this student only
-    const studentStorageKey = getStudentStorageKey(user.studentId);
+    const studentStorageKey = getStudentStorageKey(user.student_id);
     const existingData = localStorage.getItem(studentStorageKey);
     
     console.log('Looking for data with key:', studentStorageKey, 'found:', !!existingData);
@@ -213,7 +213,7 @@ const StudentDashboard = ({ user, onLogout }: { user: User; onLogout: () => void
     if (existingData) {
       try {
         const savedData = JSON.parse(existingData);
-        console.log('Found existing attendance data for student:', user.studentId, savedData);
+        console.log('Found existing attendance data for student:', user.student_id, savedData);
         
         // Fill missing weekdays and recalculate stats
         const completeAttendance = fillMissingWeekdays(savedData.recentAttendance || []);
@@ -233,7 +233,7 @@ const StudentDashboard = ({ user, onLogout }: { user: User; onLogout: () => void
           selectedUnit: savedData.selectedUnit || null
         });
       } catch (error) {
-        console.error('Error parsing attendance data for student:', user.studentId, error);
+        console.error('Error parsing attendance data for student:', user.student_id, error);
         // Reset to fresh data if parsing fails
         setAttendanceData({
           totalClasses: 0,
@@ -250,7 +250,7 @@ const StudentDashboard = ({ user, onLogout }: { user: User; onLogout: () => void
         });
       }
     } else {
-      console.log('No existing data found for student:', user.studentId, 'initializing fresh data');
+      console.log('No existing data found for student:', user.student_id, 'initializing fresh data');
       // Fresh start - no data for this student
       setAttendanceData({
         totalClasses: 0,
@@ -266,7 +266,7 @@ const StudentDashboard = ({ user, onLogout }: { user: User; onLogout: () => void
         selectedUnit: null
       });
     }
-  }, [user?.studentId]); // Add dependency on user.studentId
+  }, [user?.student_id]); // Use student_id with underscore
 
   const canPerformAction = (action: string) => {
     const now = new Date();
@@ -278,7 +278,7 @@ const StudentDashboard = ({ user, onLogout }: { user: User; onLogout: () => void
       return false;
     }
     
-    console.log('Checking action permission for student:', user.studentId, {
+    console.log('Checking action permission for student:', user.student_id, {
       action,
       today,
       lastCheckInDate: attendanceData.lastCheckInDate,
@@ -290,7 +290,7 @@ const StudentDashboard = ({ user, onLogout }: { user: User; onLogout: () => void
     if (action === 'checkin') {
       // Check if already checked in today
       if (attendanceData.lastCheckInDate === today) {
-        console.log('Student', user.studentId, 'already checked in today');
+        console.log('Student', user.student_id, 'already checked in today');
         return false;
       }
       // Can check in if status is not-marked or if it's a new day
@@ -298,7 +298,7 @@ const StudentDashboard = ({ user, onLogout }: { user: User; onLogout: () => void
     } else {
       // Check if already checked out today
       if (attendanceData.lastCheckOutDate === today) {
-        console.log('Student', user.studentId, 'already checked out today');
+        console.log('Student', user.student_id, 'already checked out today');
         return false;
       }
       
@@ -320,7 +320,7 @@ const StudentDashboard = ({ user, onLogout }: { user: User; onLogout: () => void
         console.log('Time difference since check-in:', timeDifferenceMinutes, 'minutes');
         
         if (timeDifferenceMinutes < 120) {
-          console.log('Student', user.studentId, 'cannot check out yet - minimum 120 minutes not reached');
+          console.log('Student', user.student_id, 'cannot check out yet - minimum 120 minutes not reached');
           return false;
         }
       }
@@ -330,13 +330,13 @@ const StudentDashboard = ({ user, onLogout }: { user: User; onLogout: () => void
   };
 
   const saveAttendanceData = (newData: AttendanceData) => {
-    if (!user || !user.studentId) {
-      console.error('Cannot save attendance data - invalid user or studentId:', user);
+    if (!user || !user.student_id) {
+      console.error('Cannot save attendance data - invalid user or student_id:', user);
       return;
     }
     
-    const studentStorageKey = getStudentStorageKey(user.studentId);
-    console.log('Saving attendance data for student:', user.studentId, 'to key:', studentStorageKey, newData);
+    const studentStorageKey = getStudentStorageKey(user.student_id);
+    console.log('Saving attendance data for student:', user.student_id, 'to key:', studentStorageKey, newData);
     localStorage.setItem(studentStorageKey, JSON.stringify(newData));
     setAttendanceData(newData);
   };
@@ -357,7 +357,7 @@ const StudentDashboard = ({ user, onLogout }: { user: User; onLogout: () => void
       return;
     }
     
-    console.log('Handling biometric scan for student:', user.studentId, {
+    console.log('Handling biometric scan for student:', user.student_id, {
       action,
       today,
       canPerform: canPerformAction(action),
@@ -421,7 +421,7 @@ const StudentDashboard = ({ user, onLogout }: { user: User; onLogout: () => void
         };
         saveAttendanceData(updatedData);
         toast.success(`Check-in successful for ${selectedUnit} at ${timeString}. Minimum lesson duration: 120 minutes.`);
-        console.log('Check-in completed for student:', user.studentId, updatedData);
+        console.log('Check-in completed for student:', user.student_id, updatedData);
         
         // Don't reset unit selection after successful check-in - keep it selected
       } else {
@@ -458,7 +458,7 @@ const StudentDashboard = ({ user, onLogout }: { user: User; onLogout: () => void
 
         saveAttendanceData(updatedData);
         toast.success(`Check-out successful for ${attendanceData.selectedUnit} at ${timeString}. Attendance marked!`);
-        console.log('Check-out completed for student:', user.studentId, updatedData);
+        console.log('Check-out completed for student:', user.student_id, updatedData);
       }
       
       setIsScanning(false);
@@ -523,7 +523,7 @@ const StudentDashboard = ({ user, onLogout }: { user: User; onLogout: () => void
               <CardContent className="space-y-4">
                 <div>
                   <p className="text-sm text-gray-600">Student ID</p>
-                  <p className="font-semibold">{user.studentId}</p>
+                  <p className="font-semibold">{user.student_id}</p>
                 </div>
                 <div>
                   <p className="text-sm text-gray-600">Course</p>
